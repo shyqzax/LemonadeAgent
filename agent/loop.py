@@ -83,7 +83,8 @@ class Agent:
                         history.append(f"{step}. оказался в запрещённом приложении {obs.package} — вернулся домой")
                         continue
 
-                    action, raw, usage = self.brain.decide(task, history, obs.text, obs.image, obs.image_size)
+                    action, raw, usage, reasoning = self.brain.decide(task, history, obs.text, obs.image,
+                                                                       obs.image_size)
                     outcome = self.act(action, obs)
                     prev_action = action.get("action")
 
@@ -94,7 +95,7 @@ class Agent:
                     history.append(f"{step}. {thought} → {json.dumps(short, ensure_ascii=False)} → {outcome}")
                     record = {"step": step, "package": obs.package,
                               "elements": [[e.line(), e.bounds] for e in obs.elements],
-                              "raw": raw, "action": action, "outcome": outcome, "usage": usage,
+                              "reasoning": reasoning, "raw": raw, "action": action, "outcome": outcome, "usage": usage,
                               "seconds": round(time.time() - ts, 2)}
                     log.write(json.dumps(record, ensure_ascii=False) + "\n")
                     log.flush()
@@ -131,9 +132,7 @@ class Agent:
                 if el:
                     self.device.tap(*el.center)
                     time.sleep(0.5)
-                self.device.type_text(str(a.get("text", "")))
-                if a.get("enter"):
-                    self.device.key(KEY_ENTER)
+                self.device.type_text(str(a.get("text", "")), enter=bool(a.get("enter")))
                 return "ввёл текст" + (" и нажал Enter" if a.get("enter") else "")
             if name == "swipe":
                 d = {"up": (0, -1), "down": (0, 1), "left": (-1, 0), "right": (1, 0)}.get(a.get("direction"))

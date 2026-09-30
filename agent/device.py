@@ -63,10 +63,12 @@ class Device:
     def current_ime(self) -> str:
         return self.shell("settings get secure default_input_method").strip()
 
-    def type_text(self, text: str):
+    def type_text(self, text: str, enter: bool = False):
         if text.isascii():
             # у `input text` пробел кодируется как %s
             self.shell("input text " + shlex.quote(text.replace(" ", "%s")))
+            if enter:
+                self.key(KEY_ENTER)
             return
         # Кириллицу `input text` не умеет. Печатаем через ADBKeyBoard, включая её только на время ввода,
         # чтобы у человека оставалась обычная клавиатура
@@ -78,6 +80,11 @@ class Device:
             time.sleep(0.7)  # клавиатуре нужно подключиться к полю ввода
             b64 = base64.b64encode(text.encode("utf-8")).decode()
             self.shell(f"am broadcast -a ADB_INPUT_B64 --es msg {b64}")
+            if enter:
+                # Enter жмём, пока активна невидимая ADBKeyBoard: если вернуть Gboard раньше,
+                # она всплывёт над полем и закроет результаты (так было в задаче про погоду)
+                self.key(KEY_ENTER)
+                time.sleep(1.0)
         finally:
             if prev and "adbkeyboard" not in prev:
                 self.shell(f"ime set {shlex.quote(prev)} >/dev/null 2>&1")

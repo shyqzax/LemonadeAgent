@@ -56,8 +56,8 @@ class Brain:
         self.history_steps = history_steps
 
     def decide(self, task: str, history: list[str], screen_text: str | None,
-               image: bytes | None, image_size: tuple[int, int] | None) -> tuple[dict, str, dict]:
-        """Вернёт (действие, сырой ответ модели, usage)."""
+               image: bytes | None, image_size: tuple[int, int] | None) -> tuple[dict, str, dict, str]:
+        """Вернёт (действие, сырой ответ модели, usage, размышления модели — если API их отдаёт)."""
         parts = [f"Задача: {task}",
                  "Прошлые шаги:\n" + ("\n".join(history[-self.history_steps:]) or "(это первый шаг)")]
         if screen_text:
@@ -72,9 +72,12 @@ class Brain:
             {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64," + base64.b64encode(image).decode()}},
         ]
         resp = self.client.chat.completions.create(
-            model=self.model, temperature=0.2, max_tokens=800,
+            # max_tokens включает и «размышления» модели: в трудных местах их бывает 700+ токенов
+            model=self.model, temperature=0.2, max_tokens=4000,
             messages=[{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": content}],
         )
-        raw = resp.choices[0].message.content or ""
+        msg = resp.choices[0].message
+        raw = msg.content or ""
+        reasoning = getattr(msg, "reasoning_content", None) or ""  # пригодится для дистилляции на этапе 5
         usage = resp.usage.model_dump() if resp.usage else {}
-        return parse_action(raw), raw, usage
+        return parse_action(raw), raw, usage, reasoning
