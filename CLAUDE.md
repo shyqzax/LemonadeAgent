@@ -11,5 +11,8 @@
 - Общение, комментарии в коде и документация пишутся на русском. Исключение — `README.md` на английском
   (для зарубежной аудитории); его русская копия — `README.ru.md`, держи обе версии в синхроне.
 - Python запускай через Bash (Git Bash): PowerShell 5.1 портит кириллицу в выводе.
+- В Git Bash для `adb push/pull` и других команд с путями на телефоне ставь `MSYS_NO_PATHCONV=1`,
+  иначе `/sdcard/...` превращается в путь Windows и файл уходит «в никуда».
+- Телефон: LineageOS 23.2 (Android 16) + Magisk, root есть (`adb shell su -c ...`). Скачанные образы и APK — в `tools/`.
 - Слой `agent/device.py` абстрактный (`AdbDevice` с ПК, `RootDevice` на телефоне). Новый код должен работать с обоими.
 - Офлайн-тесты: `python tests/test_offline.py`. Проверка окружения: `python scripts/doctor.py`.
