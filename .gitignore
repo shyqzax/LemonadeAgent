@@ -1,0 +1,16 @@
+# секреты
+.env
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# запуски агента, записи экрана, скачанные инструменты, модели и датасеты — большие файлы
+tools/
+logs/
+recordings/
+models/
+*.gguf
+train/data/
