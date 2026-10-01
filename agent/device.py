@@ -4,7 +4,10 @@
 поэтому код агента не знает, где он запущен.
 """
 import base64
+import os
+import re
 import shlex
+import shutil
 import subprocess
 import time
 
@@ -21,9 +24,12 @@ class Device:
     def _argv(self, cmd: str) -> list[str]:
         raise NotImplementedError
 
+    def _env(self) -> dict | None:
+        return None  # по умолчанию — окружение текущего процесса
+
     def _run(self, cmd: str, timeout: float = 30) -> bytes:
         try:
-            r = subprocess.run(self._argv(cmd), capture_output=True, timeout=timeout)
+            r = subprocess.run(self._argv(cmd), capture_output=True, timeout=timeout, env=self._env())
         except subprocess.TimeoutExpired:
             raise DeviceError(f"команда не уложилась в {timeout} с: {cmd}") from None
         if r.returncode != 0 and not r.stdout:
@@ -42,10 +48,16 @@ class Device:
 
     def ui_xml(self) -> str:
         """Дерево UI текущего экрана. Пустая строка, если uiautomator его не снял (анимация, видео, игра)."""
-        out = self.shell(f"rm -f {UI_DUMP}; uiautomator dump {UI_DUMP} >/dev/null 2>&1; cat {UI_DUMP} 2>/dev/null",
+        # «; true» — пустой ответ вместо ошибки, если экран не успокоился («could not get idle state»)
+        out = self.shell(f"rm -f {UI_DUMP}; uiautomator dump {UI_DUMP} >/dev/null 2>&1; cat {UI_DUMP} 2>/dev/null; true",
                          timeout=20)
         start = out.find("<?xml")
         return out[start:] if start >= 0 else ""
+
+    def wake(self):
+        """Включает экран и убирает экран блокировки (без пароля) — команда может прийти, когда телефон спит."""
+        self.shell("input keyevent 224; wm dismiss-keyguard")
+        time.sleep(0.8)
 
     # --- действия ---
     def tap(self, x: int, y: int):
@@ -113,7 +125,32 @@ class AdbDevice(Device):
 
 
 class RootDevice(Device):
-    """Агент живёт прямо на телефоне (Termux + root): команды идут через su."""
+    """Агент живёт прямо на телефоне (Termux + root): команды идут через su.
+
+    В PATH Termux нет системного su, поэтому ищем его сами. При первом вызове Magisk спросит на экране,
+    дать ли Termux права суперпользователя.
+
+    В окружении Termux нет системных переменных Android (BOOTCLASSPATH, ANDROID_ROOT…), а без них Java-утилиты
+    вроде uiautomator молча падают. Берём их у zygote — родителя всех приложений — и передаём в каждую команду."""
+
+    ANDROID_ENV = re.compile(r"^(ANDROID_(?!SOCKET)\w+|\w*CLASSPATH|STANDALONE_SYSTEMSERVER_JARS|EXTERNAL_STORAGE)$")
+
+    def __init__(self):
+        self.su = shutil.which("su") or next((p for p in ("/system/bin/su", "/debug_ramdisk/su", "/sbin/su")
+                                              if os.path.exists(p)), "su")
+        self.env = None
+
+    def _env(self):
+        if self.env is None:
+            self.env = dict(os.environ)
+            if "BOOTCLASSPATH" not in self.env:
+                raw = subprocess.run([self.su, "-c", "cat /proc/$(pidof zygote64 || pidof zygote)/environ"],
+                                     capture_output=True, timeout=15).stdout
+                for kv in raw.decode("utf-8", "replace").split("\0"):
+                    key, _, value = kv.partition("=")
+                    if self.ANDROID_ENV.match(key):
+                        self.env[key] = value
+        return self.env
 
     def _argv(self, cmd):
-        return ["su", "-c", cmd]
+        return [self.su, "-c", cmd]

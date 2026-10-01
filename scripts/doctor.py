@@ -56,22 +56,19 @@ def check_phone() -> bool:
 
 def check_deepseek() -> bool:
     print("== DeepSeek ==")
-    try:
-        from dotenv import load_dotenv
-        from openai import OpenAI
-    except ImportError:
-        print("  нет пакетов: pip install -r requirements.txt")
-        return False
-    load_dotenv(ROOT / ".env")
+    sys.path.insert(0, str(ROOT))
+    from agent.brain import BrainError, api_request
+    from agent.config import load_env
+
+    load_env(ROOT / ".env")
     key = os.getenv("DEEPSEEK_API_KEY", "")
     if not key or key.startswith("sk-your"):
         print("  ключ не найден: скопируй .env.example в .env и вставь свой ключ")
         return False
-    client = OpenAI(api_key=key, base_url=os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com"))
     try:
-        models = [m.id for m in client.models.list()]
-    except Exception as e:  # сеть, неверный ключ, нет баланса — покажем как есть
-        print(f"  запрос /models не прошёл: {type(e).__name__}: {e}")
+        models = [m["id"] for m in api_request("/models", timeout=20)["data"]]
+    except BrainError as e:  # сеть, неверный ключ, нет баланса — покажем как есть
+        print(f"  запрос /models не прошёл: {e}")
         return False
     print("  ключ работает, модели: " + ", ".join(models))
     want = os.getenv("DEEPSEEK_MODEL", "deepseek-flash")

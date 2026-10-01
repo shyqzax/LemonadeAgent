@@ -8,9 +8,8 @@
 import argparse
 import sys
 
-from dotenv import load_dotenv
-
 from agent.brain import Brain
+from agent.config import load_env
 from agent.device import AdbDevice, RootDevice
 from agent.loop import MODES, Agent
 
@@ -39,7 +38,7 @@ def print_step(r: dict):
 
 def main():
     sys.stdout.reconfigure(encoding="utf-8")
-    load_dotenv()
+    load_env()
     p = argparse.ArgumentParser(description="Lemonade Agent: ИИ управляет Android-телефоном")
     p.add_argument("task", help="что сделать на телефоне")
     p.add_argument("--mode", choices=MODES, default="both", help="что видит мозг (по умолчанию both)")

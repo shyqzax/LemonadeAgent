@@ -77,9 +77,71 @@ def test_safety():
     assert safety.needs_confirmation("tap", el("Pay now"))
     assert safety.needs_confirmation("tap", el("Dark theme")) is None
     assert safety.needs_confirmation("tap", el("Display")) is None
+    assert safety.needs_confirmation("tap", el("Удалить запрос")) is None  # очистка поиска — не удаление данных
+    assert safety.needs_confirmation("tap", el("Удалить фото"))
+    # окно выдачи разрешений — всегда через человека, даже безобидное «Разрешить»
+    assert safety.needs_confirmation("tap", el("Разрешить"), "com.android.permissioncontroller")
+    assert safety.needs_confirmation("tap", None, "com.google.android.permissioncontroller")
     assert safety.needs_confirmation("tap", None) is None
     assert safety.is_blocked_app("ru.sberbankmobile")
     assert not safety.is_blocked_app("com.android.settings")
+
+
+def test_load_env(tmp_path=None):
+    import os
+    import tempfile
+
+    from agent.config import load_env
+
+    d = Path(tmp_path or tempfile.mkdtemp())
+    (d / ".env").write_text('# комментарий\nLEMON_A=1\nLEMON_B = "два слова"\n\nLEMON_C=x=y\n', encoding="utf-8")
+    os.environ["LEMON_A"] = "уже задано"
+    load_env(d / ".env")
+    assert os.environ["LEMON_A"] == "уже задано"  # заданное окружение не перезаписываем
+    assert os.environ["LEMON_B"] == "два слова" and os.environ["LEMON_C"] == "x=y"
+
+
+class FakeTelegram:
+    def __init__(self):
+        self.sent = []
+
+    def call(self, method, http_timeout=30, **params):
+        self.sent.append((method, params))
+        return {"message_id": len(self.sent)}
+
+
+def _bot():
+    from interfaces.telegram_bot import Bot
+    started = []
+    bot = Bot(FakeTelegram(), owner=42, device=None, make_agent=None)
+    bot.start_task = started.append
+    return bot, started
+
+
+def test_bot_listens_only_to_owner():
+    bot, started = _bot()
+    bot.handle({"update_id": 1, "message": {"from": {"id": 666}, "text": "удали все фото"}})
+    assert started == [] and bot.tg.sent == []
+    bot.handle({"update_id": 2, "message": {"from": {"id": 42}, "text": "включи тёмную тему"}})
+    assert started == ["включи тёмную тему"]
+
+
+def test_bot_confirm_button():
+    import threading
+    bot, _ = _bot()
+    result = []
+    t = threading.Thread(target=lambda: result.append(bot.confirm("tap «Отправить»")))
+    t.start()
+    while not bot.pending:
+        pass
+    pid = bot.pending["id"]
+    # чужой не может нажать «Разрешить»
+    bot.handle({"update_id": 3, "callback_query": {"id": "q0", "from": {"id": 666}, "data": f"yes:{pid}"}})
+    assert bot.pending and not bot.pending["event"].is_set()
+    bot.handle({"update_id": 4, "callback_query": {"id": "q1", "from": {"id": 42}, "data": f"yes:{pid}",
+                                                    "message": {"message_id": 1, "text": "⚠️"}}})
+    t.join(2)
+    assert result == [True]
 
 
 def test_render():

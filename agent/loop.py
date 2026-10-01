@@ -34,12 +34,13 @@ class Observation:
 
 class Agent:
     def __init__(self, device, brain, mode: str = "both", max_steps: int = 25, confirm=None, ask=None,
-                 on_step=None, log_root: str = "logs", settle: float = 1.0):
+                 on_step=None, should_stop=None, log_root: str = "logs", settle: float = 1.0):
         assert mode in MODES, mode
         self.device, self.brain, self.mode, self.max_steps = device, brain, mode, max_steps
         self.confirm = confirm or (lambda reason: False)  # без человека опасное запрещено
         self.ask = ask or (lambda question: "пользователь недоступен")
         self.on_step = on_step or (lambda record: None)
+        self.should_stop = should_stop or (lambda: False)  # аварийная остановка (/stop в Telegram)
         self.log_root, self.settle = Path(log_root), settle
 
     def observe(self) -> Observation:
@@ -65,8 +66,12 @@ class Agent:
                   "summary": "прервано", "steps": 0, "prompt_tokens": 0, "completion_tokens": 0}
         t0 = time.time()
         try:
+            self.device.wake()
             with open(run_dir / "steps.jsonl", "w", encoding="utf-8") as log:
                 for step in range(1, self.max_steps + 1):
+                    if self.should_stop():
+                        result["summary"] = "остановлено человеком"
+                        break
                     ts = time.time()
                     result["steps"] = step
                     obs = self.observe()
@@ -123,7 +128,7 @@ class Agent:
                 xy = el.center if el else _xy(a, obs)
                 if xy is None:
                     return f"ошибка: нет элемента с id={a.get('id')} и не заданы x,y"
-                reason = safety.needs_confirmation(name, el)
+                reason = safety.needs_confirmation(name, el, obs.package)
                 if reason and not self.confirm(reason):
                     return f"человек запретил: {reason}"
                 (self.device.tap if name == "tap" else self.device.long_press)(*xy)

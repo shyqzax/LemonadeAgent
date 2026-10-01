@@ -14,5 +14,11 @@
 - В Git Bash для `adb push/pull` и других команд с путями на телефоне ставь `MSYS_NO_PATHCONV=1`,
   иначе `/sdcard/...` превращается в путь Windows и файл уходит «в никуда».
 - Телефон: LineageOS 23.2 (Android 16) + Magisk, root есть (`adb shell su -c ...`). Скачанные образы и APK — в `tools/`.
+- Агент живёт в Termux: `~/LemonadeAgent`. Команды внутри Termux с ПК — `python scripts/termux.py "…"`;
+  залить код и (пере)запустить бота — `python scripts/deploy.py --start` (`--stop` — остановить и снять автозапуск).
+  Бот стартует при загрузке через `/data/adb/service.d/lemonade.sh`, лог — `~/LemonadeAgent/logs/bot.log`.
+- Telegram у провайдера заблокирован: на телефоне AmneziaVPN с «Постоянной VPN». Нет связи с Telegram — сначала проверь VPN.
+- Не выводи в чат токен бота и Telegram ID владельца: при чтении `bot.log` маскируй их через `sed`.
+- Зависимости — только стандартная библиотека и Pillow (HTTP через `urllib`), чтобы всё ставилось в Termux без сборки.
 - Слой `agent/device.py` абстрактный (`AdbDevice` с ПК, `RootDevice` на телефоне). Новый код должен работать с обоими.
 - Офлайн-тесты: `python tests/test_offline.py`. Проверка окружения: `python scripts/doctor.py`.

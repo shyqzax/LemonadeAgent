@@ -9,8 +9,9 @@ prompt injections that come from the screen.
 
 🇷🇺 [Русская версия](README.ru.md)
 
-> **Status:** Stage 2 done. The phone runs LineageOS 23.2 (Android 16) with root; the agent drives it from a PC
-> over USB (adb), and the brain is DeepSeek `deepseek-flash`. Next up: moving the agent onto the phone itself.
+> **Status:** Stage 3 done. The agent lives on the phone itself (Termux + root, LineageOS 23.2 / Android 16)
+> and takes tasks from a Telegram bot — no PC involved. The brain is DeepSeek `deepseek-flash` for now;
+> a small on-device model is Stage 5.
 > Follow the progress in the [devlog](docs/devlog.md) (in Russian).
 
 ## How it works
@@ -98,7 +99,7 @@ The agent switches to it only while typing and then restores your keyboard.
 - [x] **Stage 0.** Setup: adb, scrcpy, DeepSeek
 - [x] **Stage 1.** First agent, driven from a PC, no root
 - [x] **Stage 2.** Unlock the bootloader, LineageOS 23.2 (Android 16), root with Magisk. The same agent worked on the new OS with zero code changes
-- [ ] **Stage 3.** The agent lives on the phone (Termux + root) and takes commands from a Telegram bot
+- [x] **Stage 3.** The agent lives on the phone (Termux + root), takes tasks from a Telegram bot, asks for confirmation via buttons and starts on boot
 - [ ] **Stage 4.** Benchmark (~30 auto-checked tasks) + skill memory → learning curve
 - [ ] **Stage 5.** Local brain: a small model in llama.cpp on the Snapdragon 888, distilled from DeepSeek runs
 - [ ] **Stage 6.** Security: prompt injections from the screen, attack set, block rate before/after defenses
