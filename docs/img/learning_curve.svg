@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 330" width="960" height="330" font-family="system-ui, -apple-system, Segoe UI, sans-serif">
+<style>
+:root{--bg:#fcfcfb;--ink:#0b0b0b;--ink2:#52514e;--muted:#898781;--grid:#e1e0d9;--axis:#c3c2b7;--s1:#2a78d6;--s2:#eb6834}
+@media (prefers-color-scheme: dark){:root{--bg:#1a1a19;--ink:#ffffff;--ink2:#c3c2b7;--muted:#898781;--grid:#2c2c2a;--axis:#383835;--s1:#3987e5;--s2:#d95926}}
+.t{fill:var(--ink);font-size:16px;font-weight:600}.h{fill:var(--ink);font-size:13px;font-weight:600}.l{fill:var(--ink2);font-size:12px}.m{fill:var(--muted);font-size:11px;font-variant-numeric:tabular-nums}
+</style>
+<rect width="960" height="330" rx="8" fill="var(--bg)"/>
+<text class="t" x="24" y="32">Learning curve: 30 tasks per round</text>
+<line x1="24" y1="56" x2="42" y2="56" stroke="var(--s1)" stroke-width="2"/><circle cx="33" cy="56" r="4" fill="var(--s1)" stroke="var(--bg)" stroke-width="2"/><text class="l" x="50" y="60">with memory</text>
+<line x1="152" y1="56" x2="170" y2="56" stroke="var(--s2)" stroke-width="2"/><circle cx="161" cy="56" r="4" fill="var(--s2)" stroke="var(--bg)" stroke-width="2"/><text class="l" x="178" y="60">no memory</text>
+<text class="h" x="24.0" y="82">Success, %</text>
+<line x1="58.0" y1="286.0" x2="269.3333333333333" y2="286.0" stroke="var(--axis)" stroke-width="1"/><text class="m" x="52.0" y="290.0" text-anchor="end">0</text>
+<line x1="58.0" y1="238.5" x2="269.3333333333333" y2="238.5" stroke="var(--grid)" stroke-width="1"/><text class="m" x="52.0" y="242.5" text-anchor="end">25</text>
+<line x1="58.0" y1="191.0" x2="269.3333333333333" y2="191.0" stroke="var(--grid)" stroke-width="1"/><text class="m" x="52.0" y="195.0" text-anchor="end">50</text>
+<line x1="58.0" y1="143.5" x2="269.3333333333333" y2="143.5" stroke="var(--grid)" stroke-width="1"/><text class="m" x="52.0" y="147.5" text-anchor="end">75</text>
+<line x1="58.0" y1="96.0" x2="269.3333333333333" y2="96.0" stroke="var(--grid)" stroke-width="1"/><text class="m" x="52.0" y="100.0" text-anchor="end">100</text>
+<text class="m" x="70.0" y="304" text-anchor="middle">round 1</text>
+<text class="m" x="163.7" y="304" text-anchor="middle">round 2</text>
+<text class="m" x="257.3" y="304" text-anchor="middle">round 3</text>
+<text class="l" x="275.3333333333333" y="106.3">97</text>
+<text class="l" x="275.3333333333333" y="120.3">93</text>
+<path d="M70.0,108.7 L163.7,102.3 L257.3,102.3" fill="none" stroke="var(--s1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+<circle cx="70.0" cy="108.7" r="4" fill="var(--s1)" stroke="var(--bg)" stroke-width="2"><title>round 1: 93</title></circle>
+<circle cx="163.7" cy="102.3" r="4" fill="var(--s1)" stroke="var(--bg)" stroke-width="2"><title>round 2: 97</title></circle>
+<circle cx="257.3" cy="102.3" r="4" fill="var(--s1)" stroke="var(--bg)" stroke-width="2"><title>round 3: 97</title></circle>
+<path d="M70.0,102.3 L163.7,102.3 L257.3,108.7" fill="none" stroke="var(--s2)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+<circle cx="70.0" cy="102.3" r="4" fill="var(--s2)" stroke="var(--bg)" stroke-width="2"><title>round 1: 97</title></circle>
+<circle cx="163.7" cy="102.3" r="4" fill="var(--s2)" stroke="var(--bg)" stroke-width="2"><title>round 2: 97</title></circle>
+<circle cx="257.3" cy="108.7" r="4" fill="var(--s2)" stroke="var(--bg)" stroke-width="2"><title>round 3: 93</title></circle>
+<text class="h" x="337.3333333333333" y="82">Model calls per task</text>
+<line x1="371.3333333333333" y1="286.0" x2="582.6666666666666" y2="286.0" stroke="var(--axis)" stroke-width="1"/><text class="m" x="365.3333333333333" y="290.0" text-anchor="end">0.0</text>
+<line x1="371.3333333333333" y1="238.5" x2="582.6666666666666" y2="238.5" stroke="var(--grid)" stroke-width="1"/><text class="m" x="365.3333333333333" y="242.5" text-anchor="end">2.6</text>
+<line x1="371.3333333333333" y1="191.0" x2="582.6666666666666" y2="191.0" stroke="var(--grid)" stroke-width="1"/><text class="m" x="365.3333333333333" y="195.0" text-anchor="end">5.2</text>
+<line x1="371.3333333333333" y1="143.5" x2="582.6666666666666" y2="143.5" stroke="var(--grid)" stroke-width="1"/><text class="m" x="365.3333333333333" y="147.5" text-anchor="end">7.8</text>
+<line x1="371.3333333333333" y1="96.0" x2="582.6666666666666" y2="96.0" stroke="var(--grid)" stroke-width="1"/><text class="m" x="365.3333333333333" y="100.0" text-anchor="end">10.3</text>
+<text class="m" x="383.3" y="304" text-anchor="middle">round 1</text>
+<text class="m" x="477.0" y="304" text-anchor="middle">round 2</text>
+<text class="m" x="570.7" y="304" text-anchor="middle">round 3</text>
+<text class="l" x="588.6666666666666" y="150.3">7.6</text>
+<text class="l" x="588.6666666666666" y="191.3">5.4</text>
+<path d="M383.3,137.1 L477.0,191.0 L570.7,187.3" fill="none" stroke="var(--s1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+<circle cx="383.3" cy="137.1" r="4" fill="var(--s1)" stroke="var(--bg)" stroke-width="2"><title>round 1: 8.1</title></circle>
+<circle cx="477.0" cy="191.0" r="4" fill="var(--s1)" stroke="var(--bg)" stroke-width="2"><title>round 2: 5.2</title></circle>
+<circle cx="570.7" cy="187.3" r="4" fill="var(--s1)" stroke="var(--bg)" stroke-width="2"><title>round 3: 5.4</title></circle>
+<path d="M383.3,134.0 L477.0,148.1 L570.7,146.3" fill="none" stroke="var(--s2)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+<circle cx="383.3" cy="134.0" r="4" fill="var(--s2)" stroke="var(--bg)" stroke-width="2"><title>round 1: 8.3</title></circle>
+<circle cx="477.0" cy="148.1" r="4" fill="var(--s2)" stroke="var(--bg)" stroke-width="2"><title>round 2: 7.5</title></circle>
+<circle cx="570.7" cy="146.3" r="4" fill="var(--s2)" stroke="var(--bg)" stroke-width="2"><title>round 3: 7.6</title></circle>
+<text class="h" x="650.6666666666666" y="82">Cost per round, ¢</text>
+<line x1="684.6666666666666" y1="286.0" x2="896.0" y2="286.0" stroke="var(--axis)" stroke-width="1"/><text class="m" x="678.6666666666666" y="290.0" text-anchor="end">0.0</text>
+<line x1="684.6666666666666" y1="238.5" x2="896.0" y2="238.5" stroke="var(--grid)" stroke-width="1"/><text class="m" x="678.6666666666666" y="242.5" text-anchor="end">3.2</text>
+<line x1="684.6666666666666" y1="191.0" x2="896.0" y2="191.0" stroke="var(--grid)" stroke-width="1"/><text class="m" x="678.6666666666666" y="195.0" text-anchor="end">6.3</text>
+<line x1="684.6666666666666" y1="143.5" x2="896.0" y2="143.5" stroke="var(--grid)" stroke-width="1"/><text class="m" x="678.6666666666666" y="147.5" text-anchor="end">9.5</text>
+<line x1="684.6666666666666" y1="96.0" x2="896.0" y2="96.0" stroke="var(--grid)" stroke-width="1"/><text class="m" x="678.6666666666666" y="100.0" text-anchor="end">12.6</text>
+<text class="m" x="696.7" y="304" text-anchor="middle">round 1</text>
+<text class="m" x="790.3" y="304" text-anchor="middle">round 2</text>
+<text class="m" x="884.0" y="304" text-anchor="middle">round 3</text>
+<text class="l" x="902.0" y="147.9">9.4</text>
+<text class="l" x="902.0" y="161.9">8.7</text>
+<path d="M696.7,139.1 L790.3,196.0 L884.0,155.4" fill="none" stroke="var(--s1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+<circle cx="696.7" cy="139.1" r="4" fill="var(--s1)" stroke="var(--bg)" stroke-width="2"><title>round 1: 9.8</title></circle>
+<circle cx="790.3" cy="196.0" r="4" fill="var(--s1)" stroke="var(--bg)" stroke-width="2"><title>round 2: 6.0</title></circle>
+<circle cx="884.0" cy="155.4" r="4" fill="var(--s1)" stroke="var(--bg)" stroke-width="2"><title>round 3: 8.7</title></circle>
+<path d="M696.7,134.0 L790.3,170.1 L884.0,143.9" fill="none" stroke="var(--s2)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+<circle cx="696.7" cy="134.0" r="4" fill="var(--s2)" stroke="var(--bg)" stroke-width="2"><title>round 1: 10.1</title></circle>
+<circle cx="790.3" cy="170.1" r="4" fill="var(--s2)" stroke="var(--bg)" stroke-width="2"><title>round 2: 7.7</title></circle>
+<circle cx="884.0" cy="143.9" r="4" fill="var(--s2)" stroke="var(--bg)" stroke-width="2"><title>round 3: 9.4</title></circle>
+</svg>

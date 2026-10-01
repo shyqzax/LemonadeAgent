@@ -22,3 +22,9 @@
 - Зависимости — только стандартная библиотека и Pillow (HTTP через `urllib`), чтобы всё ставилось в Termux без сборки.
 - Слой `agent/device.py` абстрактный (`AdbDevice` с ПК, `RootDevice` на телефоне). Новый код должен работать с обоими.
 - Офлайн-тесты: `python tests/test_offline.py`. Проверка окружения: `python scripts/doctor.py`.
+- Бенчмарк: `bench/tasks.py` (30 задач с автопроверкой по состоянию системы), `bench/run_bench.py`.
+  Длинные прогоны — на телефоне в фоне (`phone/bench.sh` или `nohup setsid … &` через `scripts/termux.py`),
+  `python -m bench.notify <имена>` пришлёт итоги в Telegram, `/bench` в боте — прогресс.
+  Результаты забрать и построить график — `python scripts/plot_bench.py <имена> --pull`; копии — в `docs/bench/`.
+- Проверки бенчмарка тоже ошибаются: прежде чем винить агента, посмотри последний экран (`NN.xml`) и ключи настроек —
+  на Android 16 у части настроек «теневые» ключи (`haptic_feedback_intensity`, `device_font_scale`).

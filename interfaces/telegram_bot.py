@@ -34,16 +34,32 @@ HELP = """🍋 Lemonade Agent — ИИ, который сам управляет
 
 /stop — остановить агента
 /shot — прислать скриншот экрана
-/status — что сейчас происходит"""
+/status — что сейчас происходит
+/bench — как идёт бенчмарк"""
 
 COMMANDS = [{"command": "stop", "description": "остановить агента"},
             {"command": "shot", "description": "скриншот экрана"},
             {"command": "status", "description": "что сейчас происходит"},
+            {"command": "bench", "description": "как идёт бенчмарк"},
             {"command": "help", "description": "как пользоваться"}]
 
 
 def log(text: str):
     print(f"{datetime.now():%Y-%m-%d %H:%M:%S} {text}", flush=True)
+
+
+def bench_progress() -> str:
+    """Хвост вывода самого свежего бенчмарка: какая задача сейчас и что уже прошло."""
+    outs = sorted((ROOT / "logs" / "bench").glob("*.out"), key=lambda p: p.stat().st_mtime)
+    if not outs:
+        return "Бенчмарк ещё ни разу не запускался."
+    lines = outs[-1].read_text("utf-8", errors="replace").strip().splitlines()
+    done = sum(1 for line in lines if line.startswith("[р"))
+    ok = sum(1 for line in lines if line.startswith("[р") and "✔" in line)
+    alive = time.time() - outs[-1].stat().st_mtime < 300
+    head = (f"📊 «{outs[-1].stem}»: {'идёт' if alive else 'не обновлялся 5+ минут'}, "
+            f"готово задач {done}, успешно {ok}")
+    return head + "\n\n" + "\n".join(lines[-12:])
 
 
 class TelegramError(RuntimeError):
@@ -229,6 +245,8 @@ class Bot:
                 self.say("Агент и так ничего не делает.")
         elif cmd == "/status":
             self.say(f"Сейчас: {self.status}")
+        elif cmd == "/bench":
+            self.say(bench_progress())
         elif cmd == "/shot":
             threading.Thread(target=self.send_screen, daemon=True).start()
         elif cmd:

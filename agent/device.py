@@ -75,7 +75,14 @@ class Device:
     def current_ime(self) -> str:
         return self.shell("settings get secure default_input_method").strip()
 
-    def type_text(self, text: str, enter: bool = False):
+    def clear_field(self):
+        """Ctrl+A, Delete — очистить поле в фокусе. Нажатие на поле ставит курсор куда попало, и без очистки
+        текст вставлялся в середину старого (в бенчмарке получалось «goexample.comogle.com»)."""
+        self.shell("input keycombination 113 29; input keyevent 67")
+
+    def type_text(self, text: str, enter: bool = False, clear: bool = False):
+        if clear:
+            self.clear_field()
         if text.isascii():
             # у `input text` пробел кодируется как %s
             self.shell("input text " + shlex.quote(text.replace(" ", "%s")))

@@ -12,6 +12,7 @@ from datetime import datetime
 from pathlib import Path
 
 from . import safety
+from .cost import cost_usd
 from .device import KEY_BACK, KEY_ENTER, KEY_HOME, DeviceError
 from .perception import Element, describe, parse_ui, png_size, render
 
@@ -34,9 +35,14 @@ class Observation:
 
 class Agent:
     def __init__(self, device, brain, mode: str = "both", max_steps: int = 25, confirm=None, ask=None,
-                 on_step=None, should_stop=None, log_root: str = "logs", settle: float = 1.0):
+                 on_step=None, should_stop=None, log_root: str = "logs", settle: float = 1.0,
+                 memory=None, autosave: bool = True, replay: bool = True):
         assert mode in MODES, mode
         self.device, self.brain, self.mode, self.max_steps = device, brain, mode, max_steps
+        # память-навыки; autosave — запоминать путь, когда агент сам сказал «готово».
+        # Бенчмарк выключает autosave и сохраняет только проверенные успехи.
+        # replay — если ровно эта задача уже решалась, пройти знакомый путь без модели (кроме последнего шага)
+        self.memory, self.autosave, self.replay = memory, autosave, replay
         self.confirm = confirm or (lambda reason: False)  # без человека опасное запрещено
         self.ask = ask or (lambda question: "пользователь недоступен")
         self.on_step = on_step or (lambda record: None)
@@ -61,14 +67,25 @@ class Agent:
         run_dir = self.log_root / f"{datetime.now():%Y%m%d-%H%M%S}_{_slug(task)}"
         run_dir.mkdir(parents=True, exist_ok=True)
         history: list[str] = []
-        prev_screen, prev_action = None, None
+        skill: list[str] = []  # удачный путь — пойдёт в память, если задача решена
+        prev_screen, prev_action, skill_added_at = None, None, None
+        experience = self.memory.hint(task) if self.memory is not None else None
+        known = self.memory.exact(task) if self.memory is not None and self.replay else None
         result = {"task": task, "mode": self.mode, "model": self.brain.model, "success": False,
-                  "summary": "прервано", "steps": 0, "prompt_tokens": 0, "completion_tokens": 0}
+                  "summary": "прервано", "steps": 0, "prompt_tokens": 0, "completion_tokens": 0,
+                  "cost_usd": 0.0, "memory_hint": experience is not None, "replayed": 0, "llm_calls": 0}
         t0 = time.time()
         try:
             self.device.wake()
             with open(run_dir / "steps.jsonl", "w", encoding="utf-8") as log:
-                for step in range(1, self.max_steps + 1):
+                first = 1
+                if known and len(known) > 1:
+                    # навигацию повторяем сами, решающий последний шаг — за моделью: состояние могло быть другим
+                    history, done = self._replay(known[:-1], log, result)
+                    skill += done
+                    first = len(history) + 1
+                    result["steps"] = len(history)
+                for step in range(first, self.max_steps + 1):
                     if self.should_stop():
                         result["summary"] = "остановлено человеком"
                         break
@@ -82,6 +99,8 @@ class Agent:
                     screen = [e.line() for e in obs.elements]
                     if screen and screen == prev_screen and prev_action not in PASSIVE:
                         history[-1] += " — экран НЕ изменился"
+                        if skill_added_at == step - 1:
+                            skill.pop()  # бесполезный шаг в навык не берём
                     prev_screen = screen
                     if safety.is_blocked_app(obs.package):
                         self.device.key(KEY_HOME)
@@ -89,19 +108,25 @@ class Agent:
                         continue
 
                     action, raw, usage, reasoning = self.brain.decide(task, history, obs.text, obs.image,
-                                                                       obs.image_size)
+                                                                       obs.image_size, experience)
+                    result["llm_calls"] += 1
                     outcome = self.act(action, obs)
                     prev_action = action.get("action")
+                    if prev_action not in PASSIVE and not outcome.startswith(("ошибка", "человек запретил", "запрещено")):
+                        skill.append(_skill_step(action, _find(obs.elements, action.get("id")), outcome))
+                        skill_added_at = step
 
                     for k in ("prompt_tokens", "completion_tokens"):
                         result[k] += usage.get(k) or 0
+                    step_cost = cost_usd(usage)
+                    result["cost_usd"] += step_cost
                     thought = str(action.get("thought", ""))[:200]
                     short = {k: v for k, v in action.items() if k != "thought"}
                     history.append(f"{step}. {thought} → {json.dumps(short, ensure_ascii=False)} → {outcome}")
                     record = {"step": step, "package": obs.package,
                               "elements": [[e.line(), e.bounds] for e in obs.elements],
                               "reasoning": reasoning, "raw": raw, "action": action, "outcome": outcome, "usage": usage,
-                              "seconds": round(time.time() - ts, 2)}
+                              "cost_usd": step_cost, "seconds": round(time.time() - ts, 2)}
                     log.write(json.dumps(record, ensure_ascii=False) + "\n")
                     log.flush()
                     self.on_step(record)
@@ -113,11 +138,53 @@ class Agent:
                     time.sleep(self.settle)
                 else:
                     result["summary"] = "лимит шагов исчерпан"
+            result["skill"] = skill
+            if self.memory is not None and self.autosave and result["success"]:
+                result["learned"] = self.memory.save(task, skill)
         finally:
             result["seconds"] = round(time.time() - t0, 1)
+            result["cost_usd"] = round(result["cost_usd"], 6)
             result["log_dir"] = str(run_dir)
             (run_dir / "result.json").write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
         return result
+
+    def _replay(self, steps: list[str], log, result: dict) -> tuple[list[str], list[str]]:
+        """Повторяет шаги навыка без модели, находя элементы по подписи. Не нашёл элемент или действие
+        запрещено — останавливается, и дальше думает модель (повторённое видно ей в истории)."""
+        history, done = [], []
+        for i, s in enumerate(steps, 1):
+            if self.should_stop():
+                break
+            ts = time.time()
+            obs = self.observe()
+            outcome = self._replay_step(s, obs)
+            history.append(f"{i}. [повтор навыка] {s} → {outcome}")
+            record = {"step": i, "package": obs.package, "action": {"action": "replay", "thought": f"повторяю: {s}"},
+                      "replay": s, "outcome": outcome, "cost_usd": 0.0, "seconds": round(time.time() - ts, 2)}
+            log.write(json.dumps(record, ensure_ascii=False) + "\n")
+            log.flush()
+            self.on_step(record)
+            if outcome.startswith(("не нашёл", "ошибка", "человек запретил", "запрещено")):
+                history[-1] += " — повтор прерван, дальше решаю сам"
+                break
+            done.append(s)
+            time.sleep(self.settle)
+        result["replayed"] = len(done)
+        return history, done
+
+    def _replay_step(self, s: str, obs: Observation) -> str:
+        if m := re.match(r"^(tap|long_press) «(.*)»$", s):
+            el = _match_label(obs.elements, m.group(2))
+            return self.act({"action": m.group(1), "id": el.id}, obs) if el else f"не нашёл «{m.group(2)}» на экране"
+        if m := re.match(r"^type «(.*)»( \+ Enter)?$", s):
+            return self.act({"action": "type", "text": m.group(1), "enter": bool(m.group(2))}, obs)
+        if s.startswith("open_app "):
+            return self.act({"action": "open_app", "app": s.split(" ", 1)[1]}, obs)
+        if s.startswith("swipe "):
+            return self.act({"action": "swipe", "direction": s.split(" ", 1)[1]}, obs)
+        if s in ("back", "home", "enter"):
+            return self.act({"action": s}, obs)
+        return f"ошибка: не умею повторять «{s}»"
 
     def act(self, a: dict, obs: Observation) -> str:
         """Выполняет действие и возвращает короткий итог — он попадёт в историю для мозга."""
@@ -137,8 +204,9 @@ class Agent:
                 if el:
                     self.device.tap(*el.center)
                     time.sleep(0.5)
-                self.device.type_text(str(a.get("text", "")), enter=bool(a.get("enter")))
-                return "ввёл текст" + (" и нажал Enter" if a.get("enter") else "")
+                # по умолчанию текст заменяет содержимое поля; дописать — "append": true
+                self.device.type_text(str(a.get("text", "")), enter=bool(a.get("enter")), clear=not a.get("append"))
+                return ("дописал" if a.get("append") else "ввёл") + " текст" + (" и нажал Enter" if a.get("enter") else "")
             if name == "swipe":
                 d = {"up": (0, -1), "down": (0, 1), "left": (-1, 0), "right": (1, 0)}.get(a.get("direction"))
                 if not d:
@@ -169,6 +237,31 @@ class Agent:
             return f"ошибка устройства: {e}"
         except (TypeError, ValueError) as e:
             return f"ошибка в параметрах действия: {e}"
+
+
+def _skill_step(a: dict, el: Element | None, outcome: str) -> str:
+    """Шаг навыка в человекочитаемом виде — без номеров элементов, они в следующий раз будут другими."""
+    name = a.get("action")
+    if name in ("tap", "long_press"):
+        return f"{name} «{el.label or el.res_id or el.cls}»" if el else f"{name} в точку на скриншоте"
+    if name == "type":
+        return f"type «{a.get('text', '')}»" + (" + Enter" if a.get("enter") else "")
+    if name == "swipe":
+        return f"swipe {a.get('direction')}"
+    if name == "open_app":
+        return "open_app " + (outcome.split()[1] if outcome.startswith("открыл ") else str(a.get("app")))
+    return str(name)
+
+
+def _match_label(elements: list[Element], label: str) -> Element | None:
+    """Элемент с той же подписью; если такой нет — с тем же началом подписи (до « / »: хвост бывает живым,
+    например «Bluetooth, подключено»). Из подходящих предпочитаем кликабельные."""
+    head = label.split(" / ")[0]
+    for pick in (lambda e: e.label == label, lambda e: e.label.split(" / ")[0] == head):
+        found = [e for e in elements if e.label and pick(e)]
+        if found:
+            return next((e for e in found if "click" in e.flags), found[0])
+    return None
 
 
 def _find(elements: list[Element], id_) -> Element | None:

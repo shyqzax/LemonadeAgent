@@ -9,9 +9,9 @@ prompt injections that come from the screen.
 
 🇷🇺 [Русская версия](README.ru.md)
 
-> **Status:** Stage 3 done. The agent lives on the phone itself (Termux + root, LineageOS 23.2 / Android 16)
-> and takes tasks from a Telegram bot — no PC involved. The brain is DeepSeek `deepseek-flash` for now;
-> a small on-device model is Stage 5.
+> **Status:** Stage 4 done. The agent lives on the phone itself (Termux + root, LineageOS 23.2 / Android 16),
+> takes tasks from a Telegram bot, and learns from experience: on a 30-task benchmark, skill memory cuts model calls
+> by 30%. The brain is DeepSeek `deepseek-flash` for now; a small on-device model is Stage 5.
 > Follow the progress in the [devlog](docs/devlog.md) (in Russian).
 
 ## How it works
@@ -52,24 +52,41 @@ single action (the thought is translated from Russian):
 Every run is saved to `logs/`: raw screenshots, the UI tree, what the model saw and what it answered.
 That is both material for videos and a "screen → action" dataset for training a small local model later.
 
-## First results
+## Benchmark: does the agent learn from experience?
 
-Checked against the real system state (e.g. `cmd uimode night`), not just the agent's own claim.
+30 tasks — settings toggles, alarms, calculator, contacts, browser, questions about the phone, a few multi-app ones.
+Before each task the phone is reset to the same starting state, and success is **checked against the real system
+state** (`settings get`, `dumpsys alarm`, `content query`…), not the agent's own claim. Each experiment runs every
+task 3 rounds: with skill memory, and a control without it.
 
-| Task | Result | Steps | Time |
-|---|---|---|---|
-| Turn on light theme | ✅ 2/2 | 4–5 | 19–24 s |
-| Turn on dark theme | ✅ 3/3 | 6–9 | 32–48 s |
-| Type «яркость» (Cyrillic) into Settings search | ✅ 1/1 | 3 | 17 s |
-| Find the weather in the browser | ✅ 1/1 | 18 | 130 s |
-| Search Google for «лимонад» | ✅ 1/1 | 4 | 24 s |
-| Set an alarm for 7:00 | ✅ 1/1 | 3 | 15 s |
-| Turn off the 7:00 alarm without deleting it | ✅ 1/1 | 5 | 25 s |
+![Learning curve](docs/img/learning_curve.svg)
 
-The same task takes anywhere from 4 to 9 steps because the agent rediscovers where the setting lives every time.
-That's exactly what skill memory (Stage 4) is supposed to fix, and it's the baseline for the learning curve.
-The weather run took 18 steps because of two bugs it exposed (the keyboard covering the results and the model's
-reasoning eating the whole token budget); both are fixed, and the next browser search took 4 steps.
+| Rounds 2–3 (memory already has experience) | With memory | No memory |
+|---|---|---|
+| **Model calls per task** | **5.3** | 7.6 |
+| Cost of 60 tasks | **$0.147** | $0.171 |
+| Success | 58/60 | 57/60 |
+| Time per task | 52 s | 51 s |
+
+**How the memory works.** A successful, verified run is saved as a human-readable skill
+(`open_app settings → tap «Display» → tap «Dark theme»`). When the exact same task comes again, the agent **replays
+the known path by itself, finding buttons by their labels — no model calls**. The last, decisive step is left to the
+model, because the state may differ (blindly replaying "turn on Bluetooth" when it's already on would turn it off).
+For similar tasks the skill goes into the prompt as a hint.
+
+What we found:
+- **Replay cuts model calls by 30% and cost by 14% with no loss in success.** Where replay kicked in, 51/51 tasks
+  succeeded. The biggest wins are on long tasks: "compute 3 + 4 and set an alarm for that hour" took 2 model calls
+  instead of 16 and 47 s instead of 101 s.
+- **Time barely improved** — the model isn't the bottleneck. Reading the screen (`uiautomator dump`) takes ~2.3 s
+  per step whether the model thinks or not.
+- **The first version of memory — hints in the prompt only — gave nothing** (7.7 steps either way, and slightly more
+  expensive because of the longer prompt). Analysing it surfaced two bugs in the benchmark itself and one in the agent's
+  typing tool; all fixed. Details in the [devlog](docs/devlog.md).
+- One honest failure remains: "restore the default font size". On Android 16 the slider has 7 positions and the
+  default is the second one; the agent reasons like a human — "default = middle" — and confidently reports success.
+
+A full round of 30 tasks costs about **$0.06–0.10** with `deepseek-flash`.
 
 ## Quick start
 
@@ -91,6 +108,14 @@ python -m interfaces.cli "turn on dark theme"
 
 Options: `--mode both|tree|screen` (what the model sees), `--max-steps N`, `--serial SERIAL`. Stop at any time with `Ctrl+C`.
 
+Run the benchmark (from the PC over adb; add `--root` to run it on the phone itself):
+
+```bash
+python -m bench.run_bench --rounds 3 --memory --name memory
+python -m bench.run_bench --rounds 3 --name baseline
+python scripts/plot_bench.py memory baseline     # → docs/img/learning_curve.svg
+```
+
 Typing non-Latin text needs [ADBKeyBoard](https://github.com/senzhk/ADBKeyBoard) (`adb install` its APK).
 The agent switches to it only while typing and then restores your keyboard.
 
@@ -100,7 +125,7 @@ The agent switches to it only while typing and then restores your keyboard.
 - [x] **Stage 1.** First agent, driven from a PC, no root
 - [x] **Stage 2.** Unlock the bootloader, LineageOS 23.2 (Android 16), root with Magisk. The same agent worked on the new OS with zero code changes
 - [x] **Stage 3.** The agent lives on the phone (Termux + root), takes tasks from a Telegram bot, asks for confirmation via buttons and starts on boot
-- [ ] **Stage 4.** Benchmark (~30 auto-checked tasks) + skill memory → learning curve
+- [x] **Stage 4.** Benchmark (30 auto-checked tasks) + skill memory with replay → 30% fewer model calls
 - [ ] **Stage 5.** Local brain: a small model in llama.cpp on the Snapdragon 888, distilled from DeepSeek runs
 - [ ] **Stage 6.** Security: prompt injections from the screen, attack set, block rate before/after defenses
 - [ ] **Stage 7.** Write-ups and videos

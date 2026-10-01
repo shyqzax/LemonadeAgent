@@ -3,13 +3,15 @@ import re
 
 # Подписи кнопок, нажатие на которые может что-то отправить, оплатить или удалить
 DANGER = re.compile(r"отправ|\bsend|оплат|\bpay|купи|\bbuy|purchase|оформ|checkout|удал|delete|стере|erase|"
-                    r"сброс|reset|перевест|перевод|transfer|подписат|subscribe", re.I)
+                    r"сброс|reset|перевест|перевод|transfer|подписат|subscribe|"
+                    r"^установить$|^install$|^обновить$|^update$", re.I)  # кнопки установки приложений
 # ...кроме безобидных случаев: «Удалить запрос» в поиске — это просто очистка строки, а не удаление данных
 HARMLESS = re.compile(r"запрос|query|поиск|search|очист|clear", re.I)
 
-# Части имён пакетов, куда агенту нельзя: банки, кошельки, криптобиржи
+# Части имён пакетов, куда агенту нельзя: банки, кошельки, криптобиржи —
+# и то, на чём держится сам агент: Termux (в нём он живёт), Magisk (root) и VPN (связь с Telegram)
 BLOCKED_APPS = ("bank", "sber", "tinkoff", "tbank", "vtb", "alfabank", "wallet", "spay", "paypal",
-                "revolut", "binance", "crypto")
+                "revolut", "binance", "crypto", "termux", "magisk", "amnezia")
 
 
 def needs_confirmation(action: str, element, package: str = "") -> str | None:

@@ -16,7 +16,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
 import termux  # noqa: E402
 
-INCLUDE = ["agent", "interfaces", "phone", "tests", "requirements.txt", ".env"]
+INCLUDE = ["agent", "interfaces", "bench", "phone", "tests", "requirements.txt", ".env"]
 TAR = "/data/local/tmp/lemonade.tar"
 SERVICE = "/data/adb/service.d/lemonade.sh"
 

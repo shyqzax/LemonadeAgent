@@ -1,4 +1,5 @@
 """Проверки без телефона и без сети: python tests/test_offline.py (или pytest)."""
+import re
 import sys
 from pathlib import Path
 
@@ -142,6 +143,129 @@ def test_bot_confirm_button():
                                                     "message": {"message_id": 1, "text": "⚠️"}}})
     t.join(2)
     assert result == [True]
+
+
+def test_memory():
+    import tempfile
+
+    from agent.memory import Memory, similarity
+
+    assert similarity("Поставь будильник на 7:15", "Заведи будильник на 6:45 утра") > 0
+    assert similarity("Включи Bluetooth", "Посчитай 2+2") == 0
+    m = Memory(Path(tempfile.mkdtemp()) / "m.db")
+    assert m and len(m) == 0  # пустая память — всё равно «включена» (баг первого запуска бенчмарка)
+    assert m.hint("Включи тёмную тему") is None
+    assert m.save("Включи тёмную тему", ["open_app com.android.settings", "tap «Экран»", "tap «Тёмная тема»"])
+    assert not m.save("Включи тёмную тему", ["a", "b", "c", "d"])  # длиннее — не заменяем
+    assert m.save("Включи тёмную тему", ["open_app com.android.settings", "tap «Тёмная тема»"])  # короче — заменяем
+    hint = m.hint("Выключи тёмную тему")
+    assert hint and "tap «Тёмная тема»" in hint and len(m) == 1
+    assert m.hint("Посчитай на калькуляторе 2+2") is None
+    # «грязный» путь из бенчмарка с браузером: в навык идёт только переносимое
+    from agent.memory import clean
+    messy = ["swipe up", "tap «Браузер»", "tap «https://www.google.com/»", "type «example.com» + Enter",
+             "tap в точку на скриншоте", "type «example.com» + Enter"]
+    assert clean(messy) == ["swipe up", "tap «Браузер»", "tap «https://www.google.com/»", "type «example.com» + Enter"]
+
+
+class FakeDevice:
+    """Телефон-заглушка: экран настроек; после нажатия переключатель тёмной темы становится «on»."""
+
+    def __init__(self):
+        import io
+
+        from PIL import Image
+        buf = io.BytesIO()
+        Image.new("RGB", (1080, 2400), "white").save(buf, "PNG")
+        self.png, self.taps = buf.getvalue(), []
+
+    def screenshot(self): return self.png
+
+    def ui_xml(self):
+        # экран меняется после каждого нажатия: иначе агент счёл бы нажатие бесполезным и выкинул его из навыка
+        xml = XML.replace('text="Display"', f'text="Display {len(self.taps)}"')
+        return xml.replace('checkable="true" checked="false"', 'checkable="true" checked="true"') if self.taps else xml
+    def wake(self): pass
+    def key(self, code): pass
+    def tap(self, x, y): self.taps.append((x, y))
+
+
+class FakeBrain:
+    """Мозг-заглушка: жмёт «Dark theme» ([4]) и говорит «готово»; запоминает, какую подсказку получил."""
+    model = "fake"
+
+    def __init__(self):
+        self.experience = []
+
+    def decide(self, task, history, text, image, size, experience=None):
+        self.experience.append(experience)
+        action = {"action": "tap", "id": 4} if not history else {"action": "done", "success": True, "summary": "ok"}
+        return action, "", {"prompt_tokens": 100, "completion_tokens": 10}, ""
+
+
+def test_agent_learns_skill():
+    import tempfile
+
+    from agent.loop import Agent
+    from agent.memory import Memory
+
+    tmp = Path(tempfile.mkdtemp())
+    brain, memory = FakeBrain(), Memory(tmp / "m.db")
+    agent = Agent(FakeDevice(), brain, memory=memory, log_root=str(tmp / "logs"), settle=0)
+    r1 = agent.run("Включи тёмную тему")
+    assert r1["success"] and r1["skill"] == ["tap «Dark theme / Will never turn on automatically»"]
+    assert r1["learned"] and len(memory) == 1 and brain.experience[0] is None
+    r2 = agent.run("Выключи тёмную тему")
+    assert r2["memory_hint"] and "Dark theme" in brain.experience[-1]
+    assert r1["cost_usd"] > 0
+
+
+class TwoStepBrain(FakeBrain):
+    """«Назад» ([1]), потом «Dark theme» ([4]), потом «готово» — по числу шагов в истории."""
+
+    def decide(self, task, history, text, image, size, experience=None):
+        self.experience.append(experience)
+        action = [{"action": "tap", "id": 1}, {"action": "tap", "id": 4}][len(history)] if len(history) < 2 \
+            else {"action": "done", "success": True, "summary": "ok"}
+        return action, "", {"prompt_tokens": 100, "completion_tokens": 10}, ""
+
+
+def test_agent_replays_known_skill():
+    import tempfile
+
+    from agent.loop import Agent
+    from agent.memory import Memory
+
+    tmp = Path(tempfile.mkdtemp())
+    brain, memory = TwoStepBrain(), Memory(tmp / "m.db")
+    agent = Agent(FakeDevice(), brain, memory=memory, log_root=str(tmp / "logs"), settle=0)
+    r1 = agent.run("Включи тёмную тему")
+    assert r1["llm_calls"] == 3 and r1["replayed"] == 0 and len(r1["skill"]) == 2
+    # та же задача ещё раз: первый шаг навыка повторяется без модели, решающий последний — за моделью
+    r2 = agent.run("Включи тёмную тему")
+    assert r2["success"] and r2["replayed"] == 1 and r2["llm_calls"] == 2 and r2["cost_usd"] < r1["cost_usd"]
+
+
+def test_cost():
+    from datetime import datetime, timezone
+
+    from agent.cost import cost_usd, is_peak
+
+    usage = {"prompt_cache_hit_tokens": 1_000_000, "prompt_cache_miss_tokens": 1_000_000, "completion_tokens": 1_000_000}
+    night = datetime(2026, 10, 1, 12, 0, tzinfo=timezone.utc)   # среда, 12:00 UTC — не пик
+    peak = datetime(2026, 10, 1, 7, 0, tzinfo=timezone.utc)     # среда, 07:00 UTC — пик
+    assert not is_peak(night) and is_peak(peak) and not is_peak(datetime(2026, 10, 3, 7, tzinfo=timezone.utc))
+    assert abs(cost_usd(usage, night) - (0.003 + 0.15 + 0.6)) < 1e-9
+    assert abs(cost_usd(usage, peak) - (0.006 + 0.30 + 1.2)) < 1e-9
+
+
+def test_bench_tasks():
+    from bench.tasks import TASKS
+
+    ids = [t.id for t in TASKS]
+    assert len(ids) == len(set(ids)) and len(TASKS) >= 25
+    banned = re.compile(r"wi-?fi|режим полёта|airplane|vpn", re.I)  # задачи, рвущие связь, не берём
+    assert not [t.id for t in TASKS if banned.search(t.text)]
 
 
 def test_render():

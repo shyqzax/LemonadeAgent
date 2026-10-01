@@ -23,7 +23,8 @@ sel — выбран, on/off — переключатель) и/или скри�
 Действия:
 - {"action":"tap","id":5} — нажать на элемент; если нужного элемента нет в списке — {"action":"tap","x":300,"y":800} в пикселях скриншота
 - {"action":"long_press","id":5}
-- {"action":"type","text":"hello","id":7,"enter":false} — ввести текст; id поля необязателен (сначала нажму на него)
+- {"action":"type","text":"hello","id":7,"enter":false} — ввести текст; id поля необязателен (сначала нажму на него).
+  Старое содержимое поля заменяется целиком; чтобы дописать в конец, добавь "append":true
 - {"action":"swipe","direction":"up"} — палец идёт вверх, то есть показать то, что ниже; также down/left/right
 - {"action":"open_app","app":"settings"} — открыть приложение по имени пакета или его части
 - {"action":"back"} / {"action":"home"} / {"action":"enter"}
@@ -83,10 +84,14 @@ class Brain:
         self.history_steps = history_steps
 
     def decide(self, task: str, history: list[str], screen_text: str | None,
-               image: bytes | None, image_size: tuple[int, int] | None) -> tuple[dict, str, dict, str]:
-        """Вернёт (действие, сырой ответ модели, usage, размышления модели — если API их отдаёт)."""
-        parts = [f"Задача: {task}",
-                 "Прошлые шаги:\n" + ("\n".join(history[-self.history_steps:]) or "(это первый шаг)")]
+               image: bytes | None, image_size: tuple[int, int] | None,
+               experience: str | None = None) -> tuple[dict, str, dict, str]:
+        """Вернёт (действие, сырой ответ модели, usage, размышления модели — если API их отдаёт).
+        experience — подсказка из памяти-навыков: как похожие задачи решались раньше."""
+        parts = [f"Задача: {task}"]
+        if experience:
+            parts.append("Опыт:\n" + experience)
+        parts.append("Прошлые шаги:\n" + ("\n".join(history[-self.history_steps:]) or "(это первый шаг)"))
         if screen_text:
             parts.append("Текущий экран:\n" + screen_text)
         if image:
